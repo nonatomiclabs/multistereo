@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <math.h>
-#include "portaudio.h"
-#include "binauralize.h"
-#include "MSCallback.h"
+#include "multistereo.h"
 
 #define SAMPLE_RATE         (48000)
 #define PA_SAMPLE_TYPE      paInt24
@@ -10,13 +6,17 @@
 
 typedef float SAMPLE;
 
+/* Opens all the IR as a global array of SOUNDFILE*/
+IRs = init();
+
+/********************************************************************/
+/* Defines the callback function called by Pa_OpenStream() */
+
 static int MSCallback( const void *inputBuffer, void *outputBuffer,
                          unsigned long framesPerBuffer,
                          const PaStreamCallbackTimeInfo* timeInfo,
                          PaStreamCallbackFlags statusFlags,
                          void *userData );
-
-
 
 static int MSCallback( const void *inputBuffer, void *outputBuffer,
                          unsigned long framesPerBuffer,
@@ -30,27 +30,28 @@ static int MSCallback( const void *inputBuffer, void *outputBuffer,
     (void) timeInfo; /* Prevent unused variable warnings. */
     (void) statusFlags;
     (void) userData;
-    int IR_LL, IR_LR, IR_LC, IR_LLs, IR_LRs, IR_RL, IR_RR, IR_RC, IR_RLS, IR_RRS;
+    int IR_LL, IR_LR, IR_LC, IR_LLs, IR_LRs,
+        IR_RL, IR_RR, IR_RC, IR_RLS, IR_RRS;
     for( i=0; i<framesPerBuffer; i++ )
     {
-        out[i*2]   =    conv(in[i*5],IR_LL) +
-                        conv(in[i*5],IR_LR) +
-                        conv(in[i*5],IR_LC) +
-                        conv(in[i*5],IR_LLs)+
-                        conv(in[i*5],IR_LRs);
+        out[i*2]   =    conv(in[i*5],IRs[0,0]) +
+                        conv(in[i*5],IRs[1,0]) +
+                        conv(in[i*5],IRs[2,0]) +
+                        conv(in[i*5],IRs[3,0])+
+                        conv(in[i*5],IRs[4,0]);
 
-        out[i*2+1] =    conv(in[i*5],IR_RL) +
-                        conv(in[i*5],IR_RR) +
-                        conv(in[i*5],IR_RC) +
-                        conv(in[i*5],IR_RLs)+
-                        conv(in[i*5],IR_RRs);
+        out[i*2+1] =    conv(in[i*5],IRs[0,1]) +
+                        conv(in[i*5],IRs[1,1]) +
+                        conv(in[i*5],IRs[2,1]) +
+                        conv(in[i*5],IRs[3,1])+
+                        conv(in[i*5],IRs[4,1]);
 
     } 
     return paContinue;
 }
 
-/*******************************************************************/
-int main(void);
+/********************************************************************/
+
 int main(void)
 {
     PaStreamParameters inputParameters, outputParameters;
@@ -101,6 +102,7 @@ int main(void)
 
     printf("Streams closed.\n");
     Pa_Terminate();
+    exit();
     return 0;
 
 error:
@@ -108,5 +110,6 @@ error:
     fprintf( stderr, "An error occured while using the portaudio stream\n" );
     fprintf( stderr, "Error number: %d\n", err );
     fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) );
+    exit();
     return -1;
 }

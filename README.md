@@ -37,7 +37,7 @@ In our case, the callback function (defined in `MSCallback.h/.c) basically sends
 The transfer function in itself is described in another file: `binauralize.h/.c`
 
 For now, only the main and callback functions are established.  
-The `binauralize` function is prototyped and will be based on "brute convolution", but may be based on FFT once a first working version will be produced.
+The `binauralize` function is prototyped and will be based on "brute convolution", but may be based on FFT once a first working version will be producedgit.
 
 ## Contributing
 

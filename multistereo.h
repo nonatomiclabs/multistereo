@@ -46,8 +46,20 @@ typedef struct
 	fftwf_complex *sp_IR_LR; /*!< Spectrum of impulse response LR */
 	fftwf_complex *sp_IR_RR; /*!< Spectrum of impulse response RR */
 
+	fftwf_complex *sp_in_left;
+	fftwf_complex *sp_in_right;
+	fftwf_complex *sp_out_left;
+	fftwf_complex *sp_out_right;
+
+	float*	output_left;
+	float*	output_right;
+	float*	temp_left;
+	float*	temp_right;
+
 	fftwf_plan forward;		 /*!< FFTW forward plan used inside the callback */
 	fftwf_plan backward;	 /*!< FFTW backward plan used inside the callback */
+
+
 }
 sharedData;
 
@@ -93,7 +105,7 @@ void listDevices (void);
 
 /** Called in the end of the execution of the program to deallocate memory and clean everything.
  */
-void closeFiles (void);
+void closeFiles (sharedData);
 
 /** Simple concatenation function used to open soundfiles by passing an argument to the program.
  *  \returns The concatenated string.

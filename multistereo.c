@@ -107,13 +107,32 @@ sharedData init (const char *path) {
     puts("--------------------------------------------------------------------------");
     #endif
 
+    float *output_left  = (float*) calloc(2048, sizeof(float));
+    float *output_right = (float*) calloc(2048, sizeof(float));
+    float *temp_left    = (float*) calloc(1024, sizeof(float));
+    float *temp_right   = (float*) calloc(1024, sizeof(float));
+
+    fftwf_complex *sp_in_left   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_right  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_left  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_right = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
     /* Pack all the data processed in a sharedData structure */
-    IRData.forward  = forward;
-    IRData.backward = backward;
-    IRData.sp_IR_LL = sp_IR_LL;
-    IRData.sp_IR_RL = sp_IR_RL;
-    IRData.sp_IR_LR = sp_IR_LR;
-    IRData.sp_IR_RR = sp_IR_RR;
+    IRData.forward 			= forward;
+    IRData.backward			= backward;
+    IRData.sp_IR_LL			= sp_IR_LL;
+    IRData.sp_IR_RL 		= sp_IR_RL;
+    IRData.sp_IR_LR 		= sp_IR_LR;
+    IRData.sp_IR_RR 		= sp_IR_RR;
+    IRData.output_left		= output_left;
+    IRData.output_right		= output_right;
+    IRData.temp_left		= temp_left;
+    IRData.temp_right		= temp_right;
+    IRData.sp_in_left		= sp_in_left;
+    IRData.sp_in_right		= sp_in_right;
+    IRData.sp_out_left		= sp_out_left;
+    IRData.sp_out_right		= sp_out_right;
+
 
     printf("Initialization OK!\n");
     puts("--------------------------------------------------------------------------");
@@ -189,7 +208,7 @@ void binauralize (int inputIndex, int outputIndex, const char* path) {
     /* Terminate PortAudio */
     printf("Streams closed.\n");
     Pa_Terminate();
-    closeFiles();
+    closeFiles(data);
     exit(0);
     
 error:
@@ -197,7 +216,7 @@ error:
     fprintf(stderr, "An error occured while using the portaudio stream\n");
     fprintf(stderr, "Error number: %d\n", err);
     fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(err));
-    closeFiles();
+    closeFiles(data);
     exit(-1);
 }
 
@@ -223,32 +242,22 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
     float *out_left  = ((float **) outputBuffer)[0];
     float *out_right = ((float **) outputBuffer)[1];
 
-    float *output_left  = (float*) calloc(2048, sizeof(float));
-    float *output_right = (float*) calloc(2048, sizeof(float));
-    float *temp_left  = (float*) calloc(1024, sizeof(float));
-    float *temp_right = (float*) calloc(1024, sizeof(float));
-
-    fftwf_complex *sp_in_left   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    fftwf_complex *sp_in_right  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    fftwf_complex *sp_out_left  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    fftwf_complex *sp_out_right = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-
-    fftwf_execute_dft_r2c(forward, in_left,  sp_in_left);
-    fftwf_execute_dft_r2c(forward, in_right, sp_in_right);
+    fftwf_execute_dft_r2c(forward, in_left,  data->sp_in_left);
+    fftwf_execute_dft_r2c(forward, in_right, data->sp_in_right);
 
     for (size_t i = 0; i < 1025; ++i)
     {
-        sp_out_left[i]  = 0.500 * (sp_in_left[i]  * data->sp_IR_LL[i] + sp_in_left[i]  * data->sp_IR_LR[i]);
-        sp_out_right[i] = 0.500 * (sp_in_right[i] * data->sp_IR_RL[i] + sp_in_right[i] * data->sp_IR_RR[i]);
+        data->sp_out_left[i]  = 0.500 * (data->sp_in_left[i]  * data->sp_IR_LL[i] + data->sp_in_left[i]  * data->sp_IR_LR[i]);
+        data->sp_out_right[i] = 0.500 * (data->sp_in_right[i] * data->sp_IR_RL[i] + data->sp_in_right[i] * data->sp_IR_RR[i]);
     }
 
-    fftwf_execute_dft_c2r(backward, sp_out_left,  output_left);
-    fftwf_execute_dft_c2r(backward, sp_out_right, output_right);
+    fftwf_execute_dft_c2r(backward, data->sp_out_left,  data->output_left);
+    fftwf_execute_dft_c2r(backward, data->sp_out_right, data->output_right);
 
     for (size_t i = 0; i < 2048; ++i)
     {
-        output_left[i]  = output_left[i]/2048.0;
-        output_right[i] = output_right[i]/2048.0;
+        data->output_left[i]  = data->output_left[i]/2048.0;
+        data->output_right[i] = data->output_right[i]/2048.0;
     }
 
 
@@ -260,10 +269,10 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
     (void) userData;
     for(i=0; i<framesPerBuffer; i++)
     {
-        out_left[i]   = 0.500 * (output_left[i] + temp_left[i]);
-        out_right[i]  = 0.500 * (output_right[i] + temp_right[i]);
-        temp_left[i]  = output_left[i + 1024];
-        temp_right[i] = output_right[i + 1024];
+        out_left[i]   = 0.500 * (data->output_left[i] + data->temp_left[i]);
+        out_right[i]  = 0.500 * (data->output_right[i] + data->temp_right[i]);
+        data->temp_left[i]  = data->output_left[i + 1024];
+        data->temp_right[i] = data->output_right[i + 1024];
     }
     
     return paContinue;
@@ -385,7 +394,25 @@ error:
 /***********************************************************************************/
 /********************************  CLOSEFILES ()  **********************************/
 /***********************************************************************************/
-void closeFiles (void){
+void closeFiles (sharedData data) {
+	free(data.sp_IR_LL);
+	free(data.sp_IR_LR);
+	free(data.sp_IR_RL);
+	free(data.sp_IR_RR);
+
+	free(data.sp_in_left);
+	free(data.sp_in_right);
+	free(data.sp_out_left);
+	free(data.sp_out_right);
+
+	free(data.output_left);
+	free(data.output_right);
+	free(data.temp_left);
+	free(data.temp_right);
+
+	fftwf_destroy_plan(data.forward);
+	fftwf_destroy_plan(data.backward);
+
     fftwf_cleanup();
 }
 

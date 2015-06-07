@@ -1,126 +1,406 @@
-#include "binauralize.h"
+#include "multistereo.h"
 
-/* init() is called when the program starts, before streams are
-// opened by portaudio.
-// It is intended to load all impulse responses in RAM for being used
-// after in the callback function */
-float* init (void) {
-    SF_INFO *IR_info;
-    IR_info->samplerate = 48000;
-    IR_info->channels = 1;
-    IR_info->format = 0;
+/***********************************************************************************/
+/**********************************  INIT ()  **************************************/
+/***********************************************************************************/
+sharedData init (const char *path) {
+    SF_INFO IRInfo;
+    sharedData IRData;
 
-
-    SOUNDFILE *IR_LL  = NULL;
-    SOUNDFILE *IR_LR  = NULL;
-    SOUNDFILE *IR_LC  = NULL;
-    SOUNDFILE *IR_LLs = NULL;
-    SOUNDFILE *IR_LRs = NULL;
-
-    SOUNDFILE *IR_RL  = NULL;
-    SOUNDFILE *IR_RR  = NULL;
-    SOUNDFILE *IR_RC  = NULL;
-    SOUNDFILE *IR_RLs = NULL;
-    SOUNDFILE *IR_RRs = NULL;
-
-    IR_LL  = sf_open("test_IR/IR_LL.wav" , SFM_READ, IR_info);
-    IR_LR  = sf_open("test_IR/IR_LR.wav" , SFM_READ, IR_info);
-    IR_LC  = sf_open("test_IR/IR_LC.wav" , SFM_READ, IR_info);
-    IR_LLs = sf_open("test_IR/IR_LLs.wav", SFM_READ, IR_info);
-    IR_LRs = sf_open("test_IR/IR_LRs.wav", SFM_READ, IR_info);
-
-    IR_RL  = sf_open("test_IR/IR_RL.wav" , SFM_READ, IR_info);
-    IR_RR  = sf_open("test_IR/IR_RR.wav" , SFM_READ, IR_info);
-    IR_RC  = sf_open("test_IR/IR_RC.wav" , SFM_READ, IR_info);
-    IR_RLs = sf_open("test_IR/IR_RLs.wav", SFM_READ, IR_info);
-    IR_RRs = sf_open("test_IR/IR_RRs.wav", SFM_READ, IR_info);
-
-    SOUNDFILE* IR_array = [IR_LL, IR_LR, IR_LC, IR_LLs, IR_LRs
-                      IR_RL, IR_RR, IR_RC, IR_RLs, IR_RRs];
-
-    return IR_array;
-}
-
-/* exit() is called after stream is closed by portaudio.
-It closes all the IR files opened by init() */
-void exit (void) {
-  sf_close(IR_LL);
-  sf_close(IR_LR);
-  sf_close(IR_LC);
-  sf_close(IR_LLs);
-  sf_close(IR_LRs);
-
-  sf_close(IR_RL);
-  sf_close(IR_RR);
-  sf_close(IR_RC);
-  sf_close(IR_RLs);
-  sf_close(IR_RRs);
-}
-
-float conv (float input, SOUNDFILE IR) {
-	double* out = malloc(sizeof(double) * 512);
-}
-
-/*double fabs(double n) {
-  return (n < 0.0) ? -n : n;
-}*/
-
-void convolve_wave(char* infile, char* iirfile, char* outfile) {
-  
-// Crée deux fichiers d'infos sndfile WAV
-  //SF_INFO in_info, iir_info;
-
-// Ouvre le fichier in et l'IR dans un type SNDFILE
-  //SNDFILE* in_snd = sf_open(infile, &in_info);
-  //SNDFILE* iir_snd = sf_open(iirfile, &iir_info);
-
-// Initialise deux buffers de la taile du fichier d'entrée et de l'IR
-  //double* in_buffer = read_whole_buffer(in_snd, &in_info);
-  //double* iir_buffer = read_whole_buffer(iir_snd, &iir_info);
-
-
-// Longueurs des fichiers ?
-  sf_count_t in_len = info_n(&in_info);
-  sf_count_t iir_len = info_n(&iir_info);
-  sf_count_t out_len = in_len + iir_len - 1;
-
-
-// Alloue un espace de la bonne taille pour la sortie
-  double* out = malloc(sizeof(double) * out_len);
-
-
-  // convolution
-  printf("Convolution.\n");
-  double val, max;
-
-// Crée 4 variables de type sf_count_t pour les différentes bornes des sommes
-  sf_count_t low, high, i, j;
-
-  max = 0.0;
-  for (i = 0; i < out_len; i++) { // Dans notre cas, pour i allant de 0 à 1023
-    low = i - iir_len + 1; // low va de -1023 à 0
-    low = low > 0 ? low : 0; // Check si low est positif; si oui, on renvoie low, sinon 0; pour nous ce sera toujours 0
-
-    high = i; // high va de 0 à 1023
-    high = high > (in_len-1) ? (in_len-1) : high; // Check si high est plus grand que 1023; si oui, on renvoie 1023, sinon renvoie high; renverra toujours high pr ns
-
-    val = 0;
-    for (j = low; j <= high; j++) { // Pour j allant de 0 à high, avec high variant de 0 à 1023
-      sf_count_t k = (i-low)-(j-low);
-      //assert(j >= 0 && j < in_len);
-      //assert(k >= 0 && k < iir_len);
-      val += in_buffer[j] * iir_buffer[k];
+    /* Defines the paths to IR files */
+    char *path_IR_LL = concatenate(path,"/IR_LL.wav");
+    char *path_IR_RL = concatenate(path,"/IR_RL.wav");
+    char *path_IR_LR = concatenate(path,"/IR_LR.wav");
+    char *path_IR_RR = concatenate(path,"/IR_RR.wav");
+    
+    /* Opens WAV files to SNDFILEs */
+    SNDFILE *sndfile_IR_LL  = sf_open(path_IR_LL, SFM_READ, &IRInfo);
+    if (sndfile_IR_LL == NULL) {
+        puts("Impossible to open IR_LL");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RL  = sf_open(path_IR_RL, SFM_READ, &IRInfo);
+    if (sndfile_IR_RL == NULL) {
+        puts("Impossible to open IR_RL");
+        puts("Read the documentation for more informations.");
+        exit(-1);
     }
 
-    if (fabs(val) > max) max = fabs(val); // si l'abs de la sortie est plus grand que le max, assigne le max à la val
-    out[i] = val; // Renvoie val
-  }
+    SNDFILE *sndfile_IR_LR  = sf_open(path_IR_LR, SFM_READ, &IRInfo);
+    if (sndfile_IR_LL == NULL) {
+        puts("Impossible to open IR_LR");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RR  = sf_open(path_IR_RR, SFM_READ, &IRInfo);
+    if (sndfile_IR_RL == NULL) {
+        puts("Impossible to open IR_RR");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
 
-// Libère tous les buffers
-  free(in_buffer);
-  free(iir_buffer);
+    free(path_IR_LL);
+    free(path_IR_RL);
+    free(path_IR_LR);
+    free(path_IR_RR);
 
-// Ferme les fichiers audio
-  sf_close(in_snd);
-  sf_close(iir_snd);
+    puts("--------------------------------------------------------------------------");
+    printf("Impulse response files correctly opened.\n");
+
+    /* Process the FFT of IR files */
+    float *IR_LL = (float*) calloc(2048, sizeof(float));
+    float *IR_RL = (float*) calloc(2048, sizeof(float));
+
+    float *IR_LR = (float*) calloc(2048, sizeof(float));
+    float *IR_RR = (float*) calloc(2048, sizeof(float));
+
+    sf_read_float(sndfile_IR_LL, IR_LL, 1024);
+    sf_read_float(sndfile_IR_RL, IR_RL, 1024);
+
+    sf_read_float(sndfile_IR_LR, IR_LR, 1024);
+    sf_read_float(sndfile_IR_RR, IR_RR, 1024);
+
+    fftwf_plan forward, backward;
+    fftwf_complex *sp_IR_LL, *sp_IR_RL, *sp_IR_LR, *sp_IR_RR;
+
+    sp_IR_LL = fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    sp_IR_RL = fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    sp_IR_LR = fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    sp_IR_RR = fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+
+    /**
+     * \bug No output when using the flags FFTW_MEASURE or FFTW_PATIENT.
+     */
+    forward = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_ESTIMATE);
+    backward = fftwf_plan_dft_c2r_1d(2048, sp_IR_LL, IR_LL, FFTW_ESTIMATE);
+
+
+    fftwf_execute(forward);
+    fftwf_execute_dft_r2c(forward, IR_LL, sp_IR_LL);
+    fftwf_execute_dft_r2c(forward, IR_LR, sp_IR_LR);
+    fftwf_execute_dft_r2c(forward, IR_RR, sp_IR_RR);
+
+    #if VERBOSE
+    puts("");
+    puts("--------------------------------------------------------------------------");
+    puts("-----------------------  VERBOSE  MODE  CALLED  --------------------------");
+    puts("--------------------------------------------------------------------------");
+
+    puts("INPUT:");
+    for (size_t i = 0; i < 8; ++i)
+    {
+        printf("%zu: %f\n", i, IR_LL[i]);
+    }
+    puts("");
+
+    puts("OUTPUT:");
+    for (size_t i = 0; i < 8; ++i)
+    {
+        printf("%zu: %f + i %f\n", i, creal(sp_IR_LL[i]), cimag(sp_IR_LL[i]));
+    }
+
+    puts("--------------------------------------------------------------------------");
+    #endif
+
+    /* Pack all the data processed in a sharedData structure */
+    IRData.forward  = forward;
+    IRData.backward = backward;
+    IRData.sp_IR_LL = sp_IR_LL;
+    IRData.sp_IR_RL = sp_IR_RL;
+    IRData.sp_IR_LR = sp_IR_LR;
+    IRData.sp_IR_RR = sp_IR_RR;
+
+    printf("Initialization OK!\n");
+    puts("--------------------------------------------------------------------------");
+    puts("");
+
+    return IRData;
+}
+
+
+/***********************************************************************************/
+/*******************************  BINAURALIZE ()  **********************************/
+/***********************************************************************************/
+void binauralize (int inputIndex, int outputIndex, const char* path) {
+    /* Initialization process */
+    sharedData data = init(path);
+
+    PaStreamParameters inputParameters, outputParameters;
+    PaStream *stream;
+    PaError err;
+    
+    /* Start PortAudio */
+    err = Pa_Initialize();
+    if(err != paNoError) goto error;
+    
+    /* Define input device */
+    inputParameters.device = inputIndex;
+    if (inputParameters.device == paNoDevice)
+    {
+        fprintf(stderr,"Error: No default input device.\n");
+        goto error;
+    }
+    inputParameters.channelCount = 2;
+    inputParameters.sampleFormat = PA_SAMPLE_TYPE;
+    inputParameters.suggestedLatency = Pa_GetDeviceInfo(inputParameters.device)->defaultLowInputLatency;
+    inputParameters.hostApiSpecificStreamInfo = NULL;
+    
+    /* Define ouptut device */
+    outputParameters.device = outputIndex;
+    if (outputParameters.device == paNoDevice)
+    {
+        fprintf(stderr,"Error: No default output device.\n");
+        goto error;
+    }
+    outputParameters.channelCount = 2;
+    outputParameters.sampleFormat = PA_SAMPLE_TYPE;
+    outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+    outputParameters.hostApiSpecificStreamInfo = NULL;
+    
+    /* Create stream between input and output */
+    printf("Streams opening...\n");
+    err = Pa_OpenStream(&stream,
+                        &inputParameters,
+                        &outputParameters,
+                        SAMPLE_RATE,
+                        FRAMES_PER_BUFFER,
+                        0,
+                        multiStereoCallback,
+                        &data);
+    if(err != paNoError) goto error;
+    
+    /* Start processing audio */
+    err = Pa_StartStream(stream);
+    if(err != paNoError) goto error;
+    
+    /* Wait until the user decides to stop program */
+    printf("Hit ENTER to stop program.\n");
+    getchar();
+    
+    /* Close stream */
+    err = Pa_CloseStream(stream);
+    if(err != paNoError) goto error;
+    
+    /* Terminate PortAudio */
+    printf("Streams closed.\n");
+    Pa_Terminate();
+    closeFiles();
+    exit(0);
+    
+error:
+    Pa_Terminate();
+    fprintf(stderr, "An error occured while using the portaudio stream\n");
+    fprintf(stderr, "Error number: %d\n", err);
+    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(err));
+    closeFiles();
+    exit(-1);
+}
+
+
+/***********************************************************************************/
+/****************************  MULTISTEREOCALLBACK ()  *****************************/
+/***********************************************************************************/
+int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
+                        unsigned long framesPerBuffer,
+                        const PaStreamCallbackTimeInfo* timeInfo,
+                        PaStreamCallbackFlags statusFlags,
+                        void *userData)
+{
+    sharedData *data = (sharedData*) userData;
+
+    fftwf_plan forward  = data->forward;
+    fftwf_plan backward = data->backward;
+
+
+    float *in_left  = ((float **) inputBuffer)[0];
+    float *in_right = ((float **) inputBuffer)[1];
+    
+    float *out_left  = ((float **) outputBuffer)[0];
+    float *out_right = ((float **) outputBuffer)[1];
+
+    float *output_left  = (float*) calloc(2048, sizeof(float));
+    float *output_right = (float*) calloc(2048, sizeof(float));
+    float *temp_left  = (float*) calloc(1024, sizeof(float));
+    float *temp_right = (float*) calloc(1024, sizeof(float));
+
+    fftwf_complex *sp_in_left   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_right  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_left  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_right = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    fftwf_execute_dft_r2c(forward, in_left,  sp_in_left);
+    fftwf_execute_dft_r2c(forward, in_right, sp_in_right);
+
+    for (size_t i = 0; i < 1025; ++i)
+    {
+        sp_out_left[i]  = 0.500 * (sp_in_left[i]  * data->sp_IR_LL[i] + sp_in_left[i]  * data->sp_IR_LR[i]);
+        sp_out_right[i] = 0.500 * (sp_in_right[i] * data->sp_IR_RL[i] + sp_in_right[i] * data->sp_IR_RR[i]);
+    }
+
+    fftwf_execute_dft_c2r(backward, sp_out_left,  output_left);
+    fftwf_execute_dft_c2r(backward, sp_out_right, output_right);
+
+    for (size_t i = 0; i < 2048; ++i)
+    {
+        output_left[i]  = output_left[i]/2048.0;
+        output_right[i] = output_right[i]/2048.0;
+    }
+
+
+    
+    unsigned int i;
+    
+    (void) timeInfo; /* Prevent unused variable warnings. */
+    (void) statusFlags;
+    (void) userData;
+    for(i=0; i<framesPerBuffer; i++)
+    {
+        out_left[i]   = 0.500 * (output_left[i] + temp_left[i]);
+        out_right[i]  = 0.500 * (output_right[i] + temp_right[i]);
+        temp_left[i]  = output_left[i + 1024];
+        temp_right[i] = output_right[i + 1024];
+    }
+    
+    return paContinue;
+}
+
+
+/***********************************************************************************/
+/***********************************  USAGE ()  ************************************/
+/***********************************************************************************/
+void usage (void) {
+    puts("--------------------------------------------------------------------------");
+    puts("Welcome in multistereo!");
+    puts("");
+    puts("");
+    printf("To start \'binauralization\' process, please use the ");
+    color("1;31");
+    printf("\'-binauralize\'");
+    color("0");
+    printf(" flag\n");
+    printf("followed by the index of the device that you want to use for input and output");
+    printf("and the path to the folder containing audio files for impulse responses.\n");
+    puts("Also make sure that your IR are correctly named, \'IR_LRs.wav\' for the impulse response");
+    puts("of the surround right channel in the left ear.");
+    puts("Please make sure that the input/output devices have enough channels to be used.");
+    puts("To use default input and output devices, use the flag \'-binauralize default'");
+    puts("");
+    puts("");  
+    printf("To get a list of available devices with their index, use the flag ");
+    color("1;31");
+    printf("\'-devs\'.\n");
+    color("0");
+    puts("--------------------------------------------------------------------------");
+}
+
+
+/***********************************************************************************/
+/*******************************  LISTDEVICES ()  **********************************/
+/***********************************************************************************/
+void listDevices (void) {
+    int     i, numDevices, defaultDisplayed;
+    const   PaDeviceInfo *deviceInfo;
+    PaError err;
+    
+    /* Start PortAudio */
+    err = Pa_Initialize();
+    if(err != paNoError)
+    {
+        printf("ERROR: Pa_Initialize returned 0x%x\n", err);
+        goto error;
+    }
+    
+    /* Get the number of audio devices */
+    numDevices = Pa_GetDeviceCount();
+    if(numDevices < 0)
+    {
+        printf("ERROR: Pa_GetDeviceCount returned 0x%x\n", numDevices);
+        err = numDevices;
+        goto error;
+    }
+    
+    printf("%d audio devices found\n", numDevices);
+    for(i = 0; i < numDevices; i++)
+    {
+        deviceInfo = Pa_GetDeviceInfo(i);
+        printf("--------------------------------------- device #%d\n", i);
+        
+        defaultDisplayed = 0;
+        if(i == Pa_GetDefaultInputDevice())
+        {
+            printf("[ Default Input");
+            defaultDisplayed = 1;
+        }
+        else if(i == Pa_GetHostApiInfo(deviceInfo->hostApi)->defaultInputDevice)
+        {
+            const PaHostApiInfo *hostInfo = Pa_GetHostApiInfo(deviceInfo->hostApi);
+            printf("[ Default %s Input", hostInfo->name);
+            defaultDisplayed = 1;
+        }
+        
+        if(i == Pa_GetDefaultOutputDevice())
+        {
+            printf((defaultDisplayed ? "," : "["));
+            printf(" Default Output");
+            defaultDisplayed = 1;
+        }
+        else if(i == Pa_GetHostApiInfo(deviceInfo->hostApi)->defaultOutputDevice)
+        {
+            const PaHostApiInfo *hostInfo = Pa_GetHostApiInfo(deviceInfo->hostApi);
+            printf((defaultDisplayed ? "," : "["));
+            printf(" Default %s Output", hostInfo->name);
+            defaultDisplayed = 1;
+        }
+        
+        if(defaultDisplayed)
+            printf(" ]\n");
+        
+        /* Print device info */
+        printf("Name                        = %s\n", deviceInfo->name);
+        printf("Host API                    = %s\n",  Pa_GetHostApiInfo(deviceInfo->hostApi)->name);
+        printf("Max inputs = %d", deviceInfo->maxInputChannels);
+        printf(", Max outputs = %d\n", deviceInfo->maxOutputChannels);
+        printf("Default low input latency   = %8.4f\n", deviceInfo->defaultLowInputLatency);
+        printf("Default low output latency  = %8.4f\n", deviceInfo->defaultLowOutputLatency);
+        printf("Default high input latency  = %8.4f\n", deviceInfo->defaultHighInputLatency);
+        printf("Default high output latency = %8.4f\n", deviceInfo->defaultHighOutputLatency);
+        printf("Default sample rate         = %8.2f\n", deviceInfo->defaultSampleRate);
+    }
+    
+    Pa_Terminate();
+    
+    puts("----------------------------------------------");
+    exit(0);
+    
+error:
+    exit(-1);
+}
+
+
+/***********************************************************************************/
+/********************************  CLOSEFILES ()  **********************************/
+/***********************************************************************************/
+void closeFiles (void){
+    fftwf_cleanup();
+}
+
+
+/***********************************************************************************/
+/*******************************  CONCATENATE ()  **********************************/
+/***********************************************************************************/
+char* concatenate(const char *string1, const char *string2)
+{
+    char *out = malloc(strlen(string1)+strlen(string2)+1);
+    if (out == NULL) {
+        printf("Problem concatenating input strings\n");
+        exit(-1);
+    }
+    strcpy(out, string1);
+    strcat(out, string2);
+    return out;
 }

@@ -64,19 +64,17 @@ sharedData init (const char *path) {
     sf_read_float(sndfile_IR_RR, IR_RR, 1024);
 
     fftwf_plan forward, backward;
-    fftwf_complex *sp_IR_LL, *sp_IR_RL, *sp_IR_LR, *sp_IR_RR;
 
-    sp_IR_LL = fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    sp_IR_RL = fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_LL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
 
-    sp_IR_LR = fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    sp_IR_RR = fftwf_malloc(sizeof(fftwf_complex) * 1025);
-
+    fftwf_complex *sp_IR_LR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
 
     /**
      * \bug No output when using the flags FFTW_MEASURE or FFTW_PATIENT.
      */
-    forward = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_ESTIMATE);
+    forward  = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_ESTIMATE);
     backward = fftwf_plan_dft_c2r_1d(2048, sp_IR_LL, IR_LL, FFTW_ESTIMATE);
 
 
@@ -232,18 +230,14 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
 {
     sharedData *data = (sharedData*) userData;
 
-    fftwf_plan forward  = data->forward;
-    fftwf_plan backward = data->backward;
-
-
     float *in_left  = ((float **) inputBuffer)[0];
     float *in_right = ((float **) inputBuffer)[1];
     
     float *out_left  = ((float **) outputBuffer)[0];
     float *out_right = ((float **) outputBuffer)[1];
 
-    fftwf_execute_dft_r2c(forward, in_left,  data->sp_in_left);
-    fftwf_execute_dft_r2c(forward, in_right, data->sp_in_right);
+    fftwf_execute_dft_r2c(data->forward, in_left,  data->sp_in_left);
+    fftwf_execute_dft_r2c(data->forward, in_right, data->sp_in_right);
 
     for (size_t i = 0; i < 1025; ++i)
     {
@@ -251,8 +245,8 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
         data->sp_out_right[i] = 0.500 * (data->sp_in_right[i] * data->sp_IR_RL[i] + data->sp_in_right[i] * data->sp_IR_RR[i]);
     }
 
-    fftwf_execute_dft_c2r(backward, data->sp_out_left,  data->output_left);
-    fftwf_execute_dft_c2r(backward, data->sp_out_right, data->output_right);
+    fftwf_execute_dft_c2r(data->backward, data->sp_out_left,  data->output_left);
+    fftwf_execute_dft_c2r(data->backward, data->sp_out_right, data->output_right);
 
     for (size_t i = 0; i < 2048; ++i)
     {
@@ -267,7 +261,7 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
     (void) timeInfo; /* Prevent unused variable warnings. */
     (void) statusFlags;
     (void) userData;
-    for(i=0; i<framesPerBuffer; i++)
+    for(i = 0; i < framesPerBuffer; i++)
     {
         out_left[i]   = 0.500 * (data->output_left[i] + data->temp_left[i]);
         out_right[i]  = 0.500 * (data->output_right[i] + data->temp_right[i]);

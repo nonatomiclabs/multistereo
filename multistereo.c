@@ -63,6 +63,12 @@ sharedData init (const char *path) {
     sf_read_float(sndfile_IR_LR, IR_LR, 1024);
     sf_read_float(sndfile_IR_RR, IR_RR, 1024);
 
+    sf_close(sndfile_IR_LL);
+    sf_close(sndfile_IR_RL);
+
+    sf_close(sndfile_IR_LR);
+    sf_close(sndfile_IR_RR);
+
     fftwf_plan forward, backward;
 
     fftwf_complex *sp_IR_LL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);

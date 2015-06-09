@@ -55,6 +55,8 @@ typedef struct
 	float*	output_right;
 	float*	temp_left;
 	float*	temp_right;
+	float*	in_left_fft;
+	float*	in_right_fft;
 
 	fftwf_plan forward;		 /*!< FFTW forward plan used inside the callback */
 	fftwf_plan backward;	 /*!< FFTW backward plan used inside the callback */

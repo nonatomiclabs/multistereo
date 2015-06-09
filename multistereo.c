@@ -115,6 +115,8 @@ sharedData init (const char *path) {
     float *output_right = (float*) calloc(2048, sizeof(float));
     float *temp_left    = (float*) calloc(1024, sizeof(float));
     float *temp_right   = (float*) calloc(1024, sizeof(float));
+    float *in_left_fft  = (float*) calloc(2048, sizeof(float));
+    float *in_right_fft = (float*) calloc(2048, sizeof(float));
 
     fftwf_complex *sp_in_left   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
     fftwf_complex *sp_in_right  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
@@ -132,10 +134,12 @@ sharedData init (const char *path) {
     IRData.output_right		= output_right;
     IRData.temp_left		= temp_left;
     IRData.temp_right		= temp_right;
+    IRData.in_left_fft      = in_left_fft;
+    IRData.in_right_fft     = in_right_fft;
     IRData.sp_in_left		= sp_in_left;
     IRData.sp_in_right		= sp_in_right;
-    IRData.sp_out_left		= sp_out_left;
-    IRData.sp_out_right		= sp_out_right;
+    IRData.sp_out_left      = sp_out_left;
+    IRData.sp_out_right     = sp_out_right;
 
 
     printf("Initialization OK!\n");
@@ -242,8 +246,18 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
     float *out_left  = ((float **) outputBuffer)[0];
     float *out_right = ((float **) outputBuffer)[1];
 
-    fftwf_execute_dft_r2c(data->forward, in_left,  data->sp_in_left);
-    fftwf_execute_dft_r2c(data->forward, in_right, data->sp_in_right);
+    for (size_t i = 0; i < 1024; i++) {
+        data->in_left_fft[i]  = in_left[i];
+        data->in_right_fft[i] = in_right[i];
+    }
+
+    for (size_t i = 1024; i < 2048; i++) {
+        data->in_left_fft[i]  = 0.0;
+        data->in_right_fft[i] = 0.0;
+    }
+
+    fftwf_execute_dft_r2c(data->forward, data->in_left_fft,  data->sp_in_left);
+    fftwf_execute_dft_r2c(data->forward, data->in_right_fft, data->sp_in_right);
 
     for (size_t i = 0; i < 1025; ++i)
     {

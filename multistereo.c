@@ -77,11 +77,8 @@ sharedData init (const char *path) {
     fftwf_complex *sp_IR_LR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
     fftwf_complex *sp_IR_RR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
 
-    /**
-     * \bug No output when using the flags FFTW_MEASURE or FFTW_PATIENT.
-     */
-    forward  = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_ESTIMATE);
-    backward = fftwf_plan_dft_c2r_1d(2048, sp_IR_LL, IR_LL, FFTW_ESTIMATE);
+    forward  = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_PATIENT);
+    backward = fftwf_plan_dft_c2r_1d(2048, sp_IR_LL, IR_LL, FFTW_PATIENT);
 
 
     fftwf_execute(forward);

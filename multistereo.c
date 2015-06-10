@@ -1,9 +1,9 @@
 #include "multistereo.h"
 
 /***********************************************************************************/
-/**********************************  INIT ()  **************************************/
+/**********************************  INITIO ()  **************************************/
 /***********************************************************************************/
-sharedData init (const char *path) {
+sharedData initIO (const char *path) {
     SF_INFO IRInfo;
     sharedData IRData;
 
@@ -148,11 +148,11 @@ sharedData init (const char *path) {
 
 
 /***********************************************************************************/
-/*******************************  BINAURALIZE ()  **********************************/
+/*******************************  BINAURALIZEIO ()  **********************************/
 /***********************************************************************************/
-void binauralize (int inputIndex, int outputIndex, const char* path) {
+void binauralizeIO (int inputIndex, int outputIndex, const char* path) {
     /* Initialization process */
-    sharedData data = init(path);
+    sharedData data = initIO(path);
 
     PaStreamParameters inputParameters, outputParameters;
     PaStream *stream;
@@ -194,7 +194,7 @@ void binauralize (int inputIndex, int outputIndex, const char* path) {
                         SAMPLE_RATE,
                         FRAMES_PER_BUFFER,
                         0,
-                        multiStereoCallback,
+                        multiStereoCallbackIO,
                         &data);
     if(err != paNoError) goto error;
     
@@ -225,11 +225,251 @@ error:
     exit(-1);
 }
 
+/***********************************************************************************/
+/*********************************  INITFILE ()  ***********************************/
+/***********************************************************************************/
+sharedData initFile (const char *pathIR, const char* pathFile) {
+    SF_INFO IRInfo, FileInfo;
+    static sharedData IRData;
+
+    SNDFILE *sndfileSource = sf_open(pathFile, SFM_READ, &FileInfo);
+    if (sndfileSource == NULL) {
+        puts("Impossible to open source file");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    else if (FileInfo.channels != 2)
+    {
+        puts("Bad file type");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    else{puts("Source file successfully opened");}
+
+    float* source = (float*) malloc(sizeof(float) * FileInfo.channels * FileInfo.frames);
+    if (source == NULL)
+    {
+        puts("Error allocating memory, input file may be too big.");
+    }
+    sf_readf_float (sndfileSource, source, FileInfo.frames);
+    puts("Source file successfully written");
+
+    /* Defines the paths to IR files */
+    char *path_IR_LL = concatenate(pathIR,"/IR_LL.wav");
+    char *path_IR_RL = concatenate(pathIR,"/IR_RL.wav");
+    char *path_IR_LR = concatenate(pathIR,"/IR_LR.wav");
+    char *path_IR_RR = concatenate(pathIR,"/IR_RR.wav");
+    
+    /* Opens WAV files to SNDFILEs */
+    SNDFILE *sndfile_IR_LL  = sf_open(path_IR_LL, SFM_READ, &IRInfo);
+    if (sndfile_IR_LL == NULL) {
+        puts("Impossible to open IR_LL");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RL  = sf_open(path_IR_RL, SFM_READ, &IRInfo);
+    if (sndfile_IR_RL == NULL) {
+        puts("Impossible to open IR_RL");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+
+    SNDFILE *sndfile_IR_LR  = sf_open(path_IR_LR, SFM_READ, &IRInfo);
+    if (sndfile_IR_LL == NULL) {
+        puts("Impossible to open IR_LR");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RR  = sf_open(path_IR_RR, SFM_READ, &IRInfo);
+    if (sndfile_IR_RL == NULL) {
+        puts("Impossible to open IR_RR");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+
+    free(path_IR_LL);
+    free(path_IR_RL);
+    free(path_IR_LR);
+    free(path_IR_RR);
+
+    puts("--------------------------------------------------------------------------");
+    printf("Impulse response files correctly opened.\n");
+
+    /* Process the FFT of IR files */
+    float *IR_LL = (float*) calloc(2048, sizeof(float));
+    float *IR_RL = (float*) calloc(2048, sizeof(float));
+
+    float *IR_LR = (float*) calloc(2048, sizeof(float));
+    float *IR_RR = (float*) calloc(2048, sizeof(float));
+
+    sf_read_float(sndfile_IR_LL, IR_LL, 1024);
+    sf_read_float(sndfile_IR_RL, IR_RL, 1024);
+
+    sf_read_float(sndfile_IR_LR, IR_LR, 1024);
+    sf_read_float(sndfile_IR_RR, IR_RR, 1024);
+
+    sf_close(sndfile_IR_LL);
+    sf_close(sndfile_IR_RL);
+
+    sf_close(sndfile_IR_LR);
+    sf_close(sndfile_IR_RR);
+
+    fftwf_plan forward, backward;
+
+    fftwf_complex *sp_IR_LL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    fftwf_complex *sp_IR_LR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    forward  = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_PATIENT);
+    backward = fftwf_plan_dft_c2r_1d(2048, sp_IR_LL, IR_LL, FFTW_PATIENT);
+
+
+    fftwf_execute(forward);
+    fftwf_execute_dft_r2c(forward, IR_LL, sp_IR_LL);
+    fftwf_execute_dft_r2c(forward, IR_LR, sp_IR_LR);
+    fftwf_execute_dft_r2c(forward, IR_RR, sp_IR_RR);
+
+    #if VERBOSE
+    puts("");
+    puts("--------------------------------------------------------------------------");
+    puts("-----------------------  VERBOSE  MODE  CALLED  --------------------------");
+    puts("--------------------------------------------------------------------------");
+
+    puts("INPUT:");
+    for (size_t i = 0; i < 8; ++i)
+    {
+        printf("%zu: %f\n", i, IR_LL[i]);
+    }
+    puts("");
+
+    puts("OUTPUT:");
+    for (size_t i = 0; i < 8; ++i)
+    {
+        printf("%zu: %f + i %f\n", i, creal(sp_IR_LL[i]), cimag(sp_IR_LL[i]));
+    }
+
+    puts("--------------------------------------------------------------------------");
+    #endif
+
+    float *output_left  = (float*) calloc(2048, sizeof(float));
+    float *output_right = (float*) calloc(2048, sizeof(float));
+    float *temp_left    = (float*) calloc(1024, sizeof(float));
+    float *temp_right   = (float*) calloc(1024, sizeof(float));
+    float *in_left_fft  = (float*) calloc(2048, sizeof(float));
+    float *in_right_fft = (float*) calloc(2048, sizeof(float));
+
+    fftwf_complex *sp_in_left   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_right  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_left  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_right = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+
+    /* Pack all the data processed in a sharedData structure */
+    IRData.forward          = forward;
+    IRData.backward         = backward;
+    IRData.sp_IR_LL         = sp_IR_LL;
+    IRData.sp_IR_RL         = sp_IR_RL;
+    IRData.sp_IR_LR         = sp_IR_LR;
+    IRData.sp_IR_RR         = sp_IR_RR;
+    IRData.output_left      = output_left;
+    IRData.output_right     = output_right;
+    IRData.temp_left        = temp_left;
+    IRData.temp_right       = temp_right;
+    IRData.in_left_fft      = in_left_fft;
+    IRData.in_right_fft     = in_right_fft;
+    IRData.sp_in_left       = sp_in_left;
+    IRData.sp_in_right      = sp_in_right;
+    IRData.sp_out_left      = sp_out_left;
+    IRData.sp_out_right     = sp_out_right;
+    IRData.source           = source;
+    IRData.FileInfo         = FileInfo;
+
+
+    printf("Initialization OK!\n");
+    puts("--------------------------------------------------------------------------");
+    puts("");
+
+    return IRData;
+}
+
 
 /***********************************************************************************/
-/****************************  MULTISTEREOCALLBACK ()  *****************************/
+/*****************************  BINAURALIZEFILE ()  ********************************/
 /***********************************************************************************/
-int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
+void binauralizeFile (int outputIndex, const char* pathIR, const char* pathFile) {
+    /* Initialization process */
+    sharedData data = initFile(pathIR, pathFile);
+    unsigned long duration = ((data.FileInfo.frames / SAMPLE_RATE) * 1000.0);
+    int buffersRead;
+    data.buffersRead = &buffersRead;
+
+    PaStreamParameters outputParameters;
+    PaStream *stream;
+    PaError err;
+    
+    /* Start PortAudio */
+    err = Pa_Initialize();
+    if(err != paNoError) goto error;
+    
+    /* Define ouptut device */
+    outputParameters.device = outputIndex;
+    if (outputParameters.device == paNoDevice)
+    {
+        fprintf(stderr,"Error: No default output device.\n");
+        goto error;
+    }
+    outputParameters.channelCount = 2;
+    outputParameters.sampleFormat = PA_SAMPLE_TYPE;
+    outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+    outputParameters.hostApiSpecificStreamInfo = NULL;
+    
+    /* Create stream between input and output */
+    printf("Stream opening...\n");
+    err = Pa_OpenStream(&stream,
+                        NULL,
+                        &outputParameters,
+                        SAMPLE_RATE,
+                        FRAMES_PER_BUFFER,
+                        0,
+                        multiStereoCallbackFile,
+                        &data);
+    if(err != paNoError) goto error;
+    
+    puts("Stream opened");
+    puts("Audio will start being processed");
+    /* Start processing audio */
+    err = Pa_StartStream(stream);
+    if(err != paNoError) goto error;
+    
+    Pa_Sleep(duration);
+    
+    /* Close stream */
+    err = Pa_CloseStream(stream);
+    if(err != paNoError) goto error;
+    
+    /* Terminate PortAudio */
+    printf("Streams closed.\n");
+    Pa_Terminate();
+    closeFiles(data);
+    exit(0);
+    
+error:
+    Pa_Terminate();
+    fprintf(stderr, "An error occured while using the portaudio stream\n");
+    fprintf(stderr, "Error number: %d\n", err);
+    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(err));
+    closeFiles(data);
+    exit(-1);
+}
+
+/***********************************************************************************/
+/****************************  MULTISTEREOCALLBACKIO ()  ***************************/
+/***********************************************************************************/
+int multiStereoCallbackIO(const void *inputBuffer, void *outputBuffer,
                         unsigned long framesPerBuffer,
                         const PaStreamCallbackTimeInfo* timeInfo,
                         PaStreamCallbackFlags statusFlags,
@@ -289,6 +529,77 @@ int multiStereoCallback(const void *inputBuffer, void *outputBuffer,
     return paContinue;
 }
 
+/***********************************************************************************/
+/**************************  MULTISTEREOCALLBACKFILE ()  ***************************/
+/***********************************************************************************/
+int multiStereoCallbackFile(const void *inputBuffer, void *outputBuffer,
+                        unsigned long framesPerBuffer,
+                        const PaStreamCallbackTimeInfo* timeInfo,
+                        PaStreamCallbackFlags statusFlags,
+                        void *userData)
+{
+    //puts("Entered callback.");
+    sharedData *data = (sharedData*) userData;
+    
+    float *out_left  = ((float **) outputBuffer)[0];
+    float *out_right = ((float **) outputBuffer)[1];
+    // puts("Outputs created.");
+    for (size_t i = 0; i < 1024; i++) {
+        data->in_left_fft[i]  = data->source[2 * (framesPerBuffer * *data->buffersRead + i)];
+        data->in_right_fft[i] = data->source[2 * (framesPerBuffer * *data->buffersRead + i) + 1];
+    }
+
+    for (size_t i = 1024; i < 2048; i++) {
+        data->in_left_fft[i]  = 0.0;
+        data->in_right_fft[i] = 0.0;
+    }
+
+    // puts("Will execute FFTs");
+    fftwf_execute_dft_r2c(data->forward, data->in_left_fft,  data->sp_in_left);
+    fftwf_execute_dft_r2c(data->forward, data->in_right_fft, data->sp_in_right);
+
+    for (size_t i = 0; i < 1025; ++i)
+    {
+        data->sp_out_left[i]  = 1.00 * (data->sp_in_left[i]  * data->sp_IR_LL[i] + data->sp_in_left[i]  * data->sp_IR_LR[i]);
+        data->sp_out_right[i] = 1.00 * (data->sp_in_right[i] * data->sp_IR_RL[i] + data->sp_in_right[i] * data->sp_IR_RR[i]);
+    }
+
+    fftwf_execute_dft_c2r(data->backward, data->sp_out_left,  data->output_left);
+    fftwf_execute_dft_c2r(data->backward, data->sp_out_right, data->output_right);
+
+    for (size_t i = 0; i < 2048; ++i)
+    {
+        data->output_left[i]  = data->output_left[i]/2048.0;
+        data->output_right[i] = data->output_right[i]/2048.0;
+    }
+
+    
+    (void) timeInfo; /* Prevent unused variable warnings. */
+    (void) statusFlags;
+    (void) userData;
+    if (*data->buffersRead * framesPerBuffer < data->FileInfo.frames)
+    { 
+        for(size_t i = 0; i < framesPerBuffer; i++)
+        {
+            out_left[i]   = 1.00 * (data->output_left[i] + data->temp_left[i]);
+            //out_right[i]  = 0.500 * (data->output_right[i] + data->temp_right[i]);
+            out_right[i] = data->source[2 * (framesPerBuffer * *data->buffersRead + i) + 1];
+            data->temp_left[i]  = data->output_left[i + 1024];
+            data->temp_right[i] = data->output_right[i + 1024];
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < framesPerBuffer; i++)
+        {
+            out_left[i]   = 0.0;
+            out_right[i]  = 0.0;
+        }
+    }
+
+    *data->buffersRead = *data->buffersRead + 1;
+    return paContinue;
+}
 
 /***********************************************************************************/
 /***********************************  USAGE ()  ************************************/

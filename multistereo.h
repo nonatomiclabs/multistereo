@@ -61,7 +61,9 @@ typedef struct
 	fftwf_plan forward;		 /*!< FFTW forward plan used inside the callback */
 	fftwf_plan backward;	 /*!< FFTW backward plan used inside the callback */
 
-
+	float* source;
+	SF_INFO FileInfo;
+	int *buffersRead;
 }
 sharedData;
 
@@ -73,7 +75,8 @@ sharedData;
  * \param path Path to the folder containing impulse response audio files.
  * \returns A sharedData structure then passed to the callback.
  */
-sharedData init (const char* path);
+sharedData initIO (const char* path);
+sharedData initFile (const char* pathIR, const char* pathFile);
 
 /**
  * Responsible for opening audio streams which will be used to binauralize the audio.
@@ -81,13 +84,22 @@ sharedData init (const char* path);
  * \param outputIndex Index of the output device to use to open audio stream.
  * \param path Path to the folder containing impulse response audio files.
  */
-void binauralize (int inputIndex, int outputIndex, const char* path);
+void binauralizeIO   (int inputIndex, int outputIndex, const char* path);
+void binauralizeFile (int outputIndex, const char* pathIR, const char* pathFile);
+
 
 
 /** Callback called to process the 'binauralization'
 	\returns PaContinue
  */
-int multiStereoCallback(const void *inputBuffer,
+int multiStereoCallbackIO(const void *inputBuffer,
+						void *outputBuffer,
+						unsigned long framesPerBuffer,
+						const PaStreamCallbackTimeInfo* timeInfo,
+						PaStreamCallbackFlags statusFlags,
+						void *userData);
+
+int multiStereoCallbackFile(const void *inputBuffer,
 						void *outputBuffer,
 						unsigned long framesPerBuffer,
 						const PaStreamCallbackTimeInfo* timeInfo,

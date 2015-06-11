@@ -230,7 +230,8 @@ error:
 /***********************************************************************************/
 sharedData initFile (const char *pathIR, const char* pathFile) {
     SF_INFO IRInfo, FileInfo;
-    static sharedData IRData;
+    sharedData IRData;
+    fftwf_plan forward, backward;
 
     SNDFILE *sndfileSource = sf_open(pathFile, SFM_READ, &FileInfo);
     if (sndfileSource == NULL) {
@@ -238,7 +239,7 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
         puts("Read the documentation for more informations.");
         exit(-1);
     }
-    else if (FileInfo.channels != 2)
+    else if (FileInfo.channels != 5)
     {
         puts("Bad file type");
         puts("Read the documentation for more informations.");
@@ -246,7 +247,7 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
     }
     else{puts("Source file successfully opened");}
 
-    float* source = (float*) malloc(sizeof(float) * FileInfo.channels * FileInfo.frames);
+    float* source = (float*) calloc(FileInfo.channels * FileInfo.frames, sizeof(float));
     if (source == NULL)
     {
         puts("Error allocating memory, input file may be too big.");
@@ -255,11 +256,18 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
     puts("Source file successfully written");
 
     /* Defines the paths to IR files */
-    char *path_IR_LL = concatenate(pathIR,"/IR_LL.wav");
-    char *path_IR_RL = concatenate(pathIR,"/IR_RL.wav");
-    char *path_IR_LR = concatenate(pathIR,"/IR_LR.wav");
-    char *path_IR_RR = concatenate(pathIR,"/IR_RR.wav");
-    
+    char *path_IR_LL  = concatenate(pathIR,"/IR_LL.wav");
+    char *path_IR_RL  = concatenate(pathIR,"/IR_RL.wav");
+    char *path_IR_LC  = concatenate(pathIR,"/IR_LC.wav");
+    char *path_IR_RC  = concatenate(pathIR,"/IR_RC.wav");
+    char *path_IR_LR  = concatenate(pathIR,"/IR_LR.wav");
+    char *path_IR_RR  = concatenate(pathIR,"/IR_RR.wav");
+    char *path_IR_LRs = concatenate(pathIR,"/IR_LRs.wav");
+    char *path_IR_RRs = concatenate(pathIR,"/IR_RRs.wav");
+    char *path_IR_LLs = concatenate(pathIR,"/IR_LLs.wav");
+    char *path_IR_RLs = concatenate(pathIR,"/IR_RLs.wav");
+
+
     /* Opens WAV files to SNDFILEs */
     SNDFILE *sndfile_IR_LL  = sf_open(path_IR_LL, SFM_READ, &IRInfo);
     if (sndfile_IR_LL == NULL) {
@@ -275,24 +283,71 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
         exit(-1);
     }
 
+    SNDFILE *sndfile_IR_LC  = sf_open(path_IR_LC, SFM_READ, &IRInfo);
+    if (sndfile_IR_LC == NULL) {
+        puts("Impossible to open IR_LC");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RC  = sf_open(path_IR_RC, SFM_READ, &IRInfo);
+    if (sndfile_IR_RC == NULL) {
+        puts("Impossible to open IR_RC");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
     SNDFILE *sndfile_IR_LR  = sf_open(path_IR_LR, SFM_READ, &IRInfo);
-    if (sndfile_IR_LL == NULL) {
+    if (sndfile_IR_LR == NULL) {
         puts("Impossible to open IR_LR");
         puts("Read the documentation for more informations.");
         exit(-1);
     }
     
     SNDFILE *sndfile_IR_RR  = sf_open(path_IR_RR, SFM_READ, &IRInfo);
-    if (sndfile_IR_RL == NULL) {
+    if (sndfile_IR_RR == NULL) {
         puts("Impossible to open IR_RR");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+
+    SNDFILE *sndfile_IR_LRs  = sf_open(path_IR_LRs, SFM_READ, &IRInfo);
+    if (sndfile_IR_LRs == NULL) {
+        puts("Impossible to open IR_LRs");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RRs  = sf_open(path_IR_RRs, SFM_READ, &IRInfo);
+    if (sndfile_IR_RRs == NULL) {
+        puts("Impossible to open IR_RRs");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    SNDFILE *sndfile_IR_LLs  = sf_open(path_IR_LLs, SFM_READ, &IRInfo);
+    if (sndfile_IR_LLs == NULL) {
+        puts("Impossible to open IR_LLs");
+        puts("Read the documentation for more informations.");
+        exit(-1);
+    }
+    
+    SNDFILE *sndfile_IR_RLs  = sf_open(path_IR_RLs, SFM_READ, &IRInfo);
+    if (sndfile_IR_RLs == NULL) {
+        puts("Impossible to open IR_RLs");
         puts("Read the documentation for more informations.");
         exit(-1);
     }
 
     free(path_IR_LL);
     free(path_IR_RL);
+    free(path_IR_LC);
+    free(path_IR_RC);
     free(path_IR_LR);
     free(path_IR_RR);
+    free(path_IR_LRs);
+    free(path_IR_RRs);
+    free(path_IR_LLs);
+    free(path_IR_RLs);
+
 
     puts("--------------------------------------------------------------------------");
     printf("Impulse response files correctly opened.\n");
@@ -301,37 +356,104 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
     float *IR_LL = (float*) calloc(2048, sizeof(float));
     float *IR_RL = (float*) calloc(2048, sizeof(float));
 
+    float *IR_LC = (float*) calloc(2048, sizeof(float));
+    float *IR_RC = (float*) calloc(2048, sizeof(float));
+
     float *IR_LR = (float*) calloc(2048, sizeof(float));
     float *IR_RR = (float*) calloc(2048, sizeof(float));
+
+    float *IR_LRs = (float*) calloc(2048, sizeof(float));
+    float *IR_RRs = (float*) calloc(2048, sizeof(float));
+
+    float *IR_LLs = (float*) calloc(2048, sizeof(float));
+    float *IR_RLs = (float*) calloc(2048, sizeof(float));
+
+
 
     sf_read_float(sndfile_IR_LL, IR_LL, 1024);
     sf_read_float(sndfile_IR_RL, IR_RL, 1024);
 
+    sf_read_float(sndfile_IR_LC, IR_LC, 1024);
+    sf_read_float(sndfile_IR_RC, IR_RC, 1024);
+
     sf_read_float(sndfile_IR_LR, IR_LR, 1024);
     sf_read_float(sndfile_IR_RR, IR_RR, 1024);
+
+    sf_read_float(sndfile_IR_LRs, IR_LRs, 1024);
+    sf_read_float(sndfile_IR_RRs, IR_RRs, 1024);
+
+    sf_read_float(sndfile_IR_LLs, IR_LLs, 1024);
+    sf_read_float(sndfile_IR_RLs, IR_RLs, 1024);
 
     sf_close(sndfile_IR_LL);
     sf_close(sndfile_IR_RL);
 
+    sf_close(sndfile_IR_LC);
+    sf_close(sndfile_IR_RC);
+
     sf_close(sndfile_IR_LR);
     sf_close(sndfile_IR_RR);
 
-    fftwf_plan forward, backward;
+    sf_close(sndfile_IR_LRs);
+    sf_close(sndfile_IR_RRs);
+
+    sf_close(sndfile_IR_LLs);
+    sf_close(sndfile_IR_RLs);
+
 
     fftwf_complex *sp_IR_LL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
     fftwf_complex *sp_IR_RL = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
 
+    fftwf_complex *sp_IR_LC = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RC = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
     fftwf_complex *sp_IR_LR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
     fftwf_complex *sp_IR_RR = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
 
-    forward  = fftwf_plan_dft_r2c_1d(2048, IR_LL, sp_IR_LL, FFTW_PATIENT);
-    backward = fftwf_plan_dft_c2r_1d(2048, sp_IR_LL, IR_LL, FFTW_PATIENT);
+    fftwf_complex *sp_IR_LRs = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RRs = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    fftwf_complex *sp_IR_LLs = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_IR_RLs = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    float *fakeArray = (float*) calloc(2048, sizeof(float));
+    fftwf_complex *sp_fakeArray = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+
+    forward  = fftwf_plan_dft_r2c_1d(2048, fakeArray, sp_fakeArray, FFTW_PATIENT);
+    backward = fftwf_plan_dft_c2r_1d(2048, sp_fakeArray, fakeArray, FFTW_PATIENT);
+
+    free(fakeArray);
+    free(sp_fakeArray);
+
+    for (int i = 0; i < 1025; ++i)
+    {
+        sp_IR_LL[i]  = 0.0 + I * 0.0;
+        sp_IR_RL[i]  = 0.0 + I * 0.0;
+
+        sp_IR_LC[i]  = 0.0 + I * 0.0;
+        sp_IR_RC[i]  = 0.0 + I * 0.0;
+
+        sp_IR_LR[i]  = 0.0 + I * 0.0;
+        sp_IR_RR[i]  = 0.0 + I * 0.0;
+
+        sp_IR_LRs[i] = 0.0 + I * 0.0;
+        sp_IR_RRs[i] = 0.0 + I * 0.0;
+
+        sp_IR_LLs[i] = 0.0 + I * 0.0;
+        sp_IR_RLs[i] = 0.0 + I * 0.0;
+    }
 
 
-    fftwf_execute(forward);
     fftwf_execute_dft_r2c(forward, IR_LL, sp_IR_LL);
     fftwf_execute_dft_r2c(forward, IR_LR, sp_IR_LR);
+    fftwf_execute_dft_r2c(forward, IR_LC, sp_IR_LC);
+    fftwf_execute_dft_r2c(forward, IR_RC, sp_IR_RC);
+    fftwf_execute_dft_r2c(forward, IR_LR, sp_IR_LR);
     fftwf_execute_dft_r2c(forward, IR_RR, sp_IR_RR);
+    fftwf_execute_dft_r2c(forward, IR_LRs, sp_IR_LRs);
+    fftwf_execute_dft_r2c(forward, IR_RRs, sp_IR_RRs);
+    fftwf_execute_dft_r2c(forward, IR_LLs, sp_IR_LLs);
+    fftwf_execute_dft_r2c(forward, IR_RLs, sp_IR_RLs);
 
     #if VERBOSE
     puts("");
@@ -355,17 +477,23 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
     puts("--------------------------------------------------------------------------");
     #endif
 
-    float *output_left  = (float*) calloc(2048, sizeof(float));
-    float *output_right = (float*) calloc(2048, sizeof(float));
-    float *temp_left    = (float*) calloc(1024, sizeof(float));
-    float *temp_right   = (float*) calloc(1024, sizeof(float));
-    float *in_left_fft  = (float*) calloc(2048, sizeof(float));
-    float *in_right_fft = (float*) calloc(2048, sizeof(float));
+    float *output_left    = (float*) calloc(2048, sizeof(float));
+    float *output_right   = (float*) calloc(2048, sizeof(float));
+    float *temp_left      = (float*) calloc(1024, sizeof(float));
+    float *temp_right     = (float*) calloc(1024, sizeof(float));
+    float *in_left_fft    = (float*) calloc(2048, sizeof(float));
+    float *in_center_fft  = (float*) calloc(2048, sizeof(float));
+    float *in_right_fft   = (float*) calloc(2048, sizeof(float));
+    float *in_right_s_fft = (float*) calloc(2048, sizeof(float));
+    float *in_left_s_fft  = (float*) calloc(2048, sizeof(float));
 
-    fftwf_complex *sp_in_left   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    fftwf_complex *sp_in_right  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    fftwf_complex *sp_out_left  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
-    fftwf_complex *sp_out_right = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_left     = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_center   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_right    = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_right_s  = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_in_left_s   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_left    = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
+    fftwf_complex *sp_out_right   = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 1025);
 
 
     /* Pack all the data processed in a sharedData structure */
@@ -373,16 +501,29 @@ sharedData initFile (const char *pathIR, const char* pathFile) {
     IRData.backward         = backward;
     IRData.sp_IR_LL         = sp_IR_LL;
     IRData.sp_IR_RL         = sp_IR_RL;
+    IRData.sp_IR_LC         = sp_IR_LC;
+    IRData.sp_IR_RC         = sp_IR_RC;
     IRData.sp_IR_LR         = sp_IR_LR;
     IRData.sp_IR_RR         = sp_IR_RR;
+    IRData.sp_IR_LRs        = sp_IR_LRs;
+    IRData.sp_IR_RRs        = sp_IR_RRs;
+    IRData.sp_IR_LLs        = sp_IR_LLs;
+    IRData.sp_IR_RLs        = sp_IR_RLs;
+
     IRData.output_left      = output_left;
     IRData.output_right     = output_right;
     IRData.temp_left        = temp_left;
     IRData.temp_right       = temp_right;
     IRData.in_left_fft      = in_left_fft;
+    IRData.in_center_fft    = in_center_fft;
     IRData.in_right_fft     = in_right_fft;
+    IRData.in_right_s_fft   = in_right_s_fft;
+    IRData.in_left_s_fft    = in_left_s_fft;
     IRData.sp_in_left       = sp_in_left;
+    IRData.sp_in_center     = sp_in_center;
     IRData.sp_in_right      = sp_in_right;
+    IRData.sp_in_right_s    = sp_in_right_s;
+    IRData.sp_in_left_s     = sp_in_left_s;
     IRData.sp_out_left      = sp_out_left;
     IRData.sp_out_right     = sp_out_right;
     IRData.source           = source;
@@ -404,8 +545,8 @@ void binauralizeFile (int outputIndex, const char* pathIR, const char* pathFile)
     /* Initialization process */
     sharedData data = initFile(pathIR, pathFile);
     unsigned long duration = ((data.FileInfo.frames / SAMPLE_RATE) * 1000.0);
-    int buffersRead;
-    data.buffersRead = &buffersRead;
+    int buffersRead = 0;
+    data.buffersRead = buffersRead;
 
     PaStreamParameters outputParameters;
     PaStream *stream;
@@ -543,26 +684,91 @@ int multiStereoCallbackFile(const void *inputBuffer, void *outputBuffer,
     
     float *out_left  = ((float **) outputBuffer)[0];
     float *out_right = ((float **) outputBuffer)[1];
-    // puts("Outputs created.");
+    //puts("Outputs created.");
     for (size_t i = 0; i < 1024; i++) {
-        data->in_left_fft[i]  = data->source[2 * (framesPerBuffer * *data->buffersRead + i)];
-        data->in_right_fft[i] = data->source[2 * (framesPerBuffer * *data->buffersRead + i) + 1];
+        data->in_left_fft[i]    = data->source[5 * (framesPerBuffer * data->buffersRead + i)];
+        data->in_center_fft[i]  = data->source[5 * (framesPerBuffer * data->buffersRead + i) + 1];
+        data->in_right_fft[i]   = data->source[5 * (framesPerBuffer * data->buffersRead + i) + 2];
+        data->in_right_s_fft[i] = data->source[5 * (framesPerBuffer * data->buffersRead + i) + 3];
+        data->in_left_s_fft[i]  = data->source[5 * (framesPerBuffer * data->buffersRead + i) + 4];
+        //printf("%f\n", data->in_left_fft[i]);
+        //printf("%f\n", data->in_center_fft[i]);
+        //printf("%f\n", data->in_right_fft[i]);
+        //printf("%f\n", data->in_right_s_fft[i]);
+        //printf("%f\n", data->in_left_s_fft[i]);
     }
+
+    //printf("%i\n", data->buffersRead);
+    //printf("\n");
 
     for (size_t i = 1024; i < 2048; i++) {
-        data->in_left_fft[i]  = 0.0;
-        data->in_right_fft[i] = 0.0;
+        data->in_left_fft[i]    = 0.0;
+        data->in_center_fft[i]  = 0.0;
+        data->in_right_fft[i]   = 0.0;
+        data->in_right_s_fft[i] = 0.0;
+        data->in_left_s_fft[i]  = 0.0;
     }
 
-    // puts("Will execute FFTs");
-    fftwf_execute_dft_r2c(data->forward, data->in_left_fft,  data->sp_in_left);
-    fftwf_execute_dft_r2c(data->forward, data->in_right_fft, data->sp_in_right);
+    //puts("Will execute FFTs");
+    fftwf_execute_dft_r2c(data->forward, data->in_left_fft,    data->sp_in_left);
+    fftwf_execute_dft_r2c(data->forward, data->in_center_fft,  data->sp_in_center);
+    fftwf_execute_dft_r2c(data->forward, data->in_right_fft,   data->sp_in_right);
+    fftwf_execute_dft_r2c(data->forward, data->in_right_s_fft, data->sp_in_right_s);
+    fftwf_execute_dft_r2c(data->forward, data->in_left_s_fft,  data->sp_in_left_s);
+
+    if (data->buffersRead == 95)
+    {
+        for (int i = 0; i < 1024; ++i)
+        {
+            //printf("IN_CENTER %i: %f \n", i, data->in_center_fft[i]);
+            //printf("SP_CENTER %i: %f + i %f\n",i, creal(data->sp_in_center[i]), cimag(data->sp_in_center[i]));
+        }
+    }
+
 
     for (size_t i = 0; i < 1025; ++i)
     {
-        data->sp_out_left[i]  = 1.00 * (data->sp_in_left[i]  * data->sp_IR_LL[i] + data->sp_in_left[i]  * data->sp_IR_LR[i]);
-        data->sp_out_right[i] = 1.00 * (data->sp_in_right[i] * data->sp_IR_RL[i] + data->sp_in_right[i] * data->sp_IR_RR[i]);
+        //printf("SP_LEFT %zu: %f + i %f\n", i, creal(data->sp_in_left[i]), cimag(data->sp_in_left[i]));
+        //printf("SP_CENTER %zu: %f + i %f\n",i, creal(data->sp_in_center[i]), cimag(data->sp_in_center[i]));
+        //printf("SP_RIGHT %zu: %f + i %f\n",i,  creal(data->sp_in_right[i]), cimag(data->sp_in_right[i]));
+        //printf("SP_RIGHT_S %zu: %f + i %f\n",i, creal(data->sp_in_right_s[i]), cimag(data->sp_in_right_s[i]));
+        //printf("SP_LEFT_S %zu: %f + i %f\n",i,  creal(data->sp_in_left_s[i]), creal(data->sp_in_left_s[i]));
+        // if (data->buffersRead == 95)
+        // {
+        //  printf("SP_CENTER %zu: %f + i %f\n",i, creal(data->sp_in_center[i]*data->sp_IR_LC[i]), cimag(data->sp_in_center[i]*data->sp_IR_LC[i]));   
+        // }
+        data->sp_out_left[i]  = 0.20 * (data->sp_in_left[i]    * data->sp_IR_LL[i] +
+                                        data->sp_in_center[i]  * data->sp_IR_LC[i] +
+                                        data->sp_in_right[i]   * data->sp_IR_LR[i] +
+                                        data->sp_in_right_s[i] * data->sp_IR_LRs[i]+
+                                        data->sp_in_left_s[i]  * data->sp_IR_LLs[i]);
+        data->sp_out_right[i] = 0.20 * (data->sp_in_left[i]    * data->sp_IR_RL[i] +
+                                        data->sp_in_center[i]  * data->sp_IR_RC[i] +
+                                        data->sp_in_right[i]   * data->sp_IR_RR[i] +
+                                        data->sp_in_right_s[i] * data->sp_IR_RRs[i]+
+                                        data->sp_in_left_s[i]  * data->sp_IR_RLs[i]);
+        //printf("SP_IR_LEFT %zu: %f + i %f\n", i, creal(data->sp_IR_LL[i]), cimag(data->sp_IR_LL[i]));
     }
+
+    // for (int i = 0; i < 1024; ++i)
+    // {
+    //     printf("SP_IN_LEFT %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_in_left[i]), cimag(data->sp_in_left[i]));
+    //     printf("SP_IR_RL %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_IR_RL[i]), cimag(data->sp_IR_RL[i]));
+
+    //     printf("SP_IN_CENTER %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_in_center[i]), cimag(data->sp_in_center[i]));
+    //     printf("SP_IR_RC %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_IR_RC[i]), cimag(data->sp_IR_RC[i]));
+
+    //     printf("SP_IN_RIGHT %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_in_right[i]), cimag(data->sp_in_right[i]));
+    //     printf("SP_IR_RR %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_IR_RR[i]), cimag(data->sp_IR_RR[i]));
+
+    //     printf("SP_IN_RIGHT_S %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_in_right_s[i]), cimag(data->sp_in_right_s[i]));
+    //     printf("SP_IR_RRs %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_IR_RRs[i]), cimag(data->sp_IR_RRs[i]));
+
+    //     printf("SP_IN_LEFT_S %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_in_left_s[i]), cimag(data->sp_in_left_s[i]));
+    //     printf("SP_IR_RLs %i:%i = %f + i %f\n", data->buffersRead, i, creal(data->sp_IR_RLs[i]), cimag(data->sp_IR_RLs[i]));
+
+    //     printf("OUTPUT_RIGHT %i:%i = %f\n", data->buffersRead, i, data->output_right[i]);
+    // }
 
     fftwf_execute_dft_c2r(data->backward, data->sp_out_left,  data->output_left);
     fftwf_execute_dft_c2r(data->backward, data->sp_out_right, data->output_right);
@@ -577,13 +783,14 @@ int multiStereoCallbackFile(const void *inputBuffer, void *outputBuffer,
     (void) timeInfo; /* Prevent unused variable warnings. */
     (void) statusFlags;
     (void) userData;
-    if (*data->buffersRead * framesPerBuffer < data->FileInfo.frames)
+    if (data->buffersRead * framesPerBuffer < data->FileInfo.frames)
     { 
         for(size_t i = 0; i < framesPerBuffer; i++)
         {
-            out_left[i]   = 1.00 * (data->output_left[i] + data->temp_left[i]);
-            //out_right[i]  = 0.500 * (data->output_right[i] + data->temp_right[i]);
-            out_right[i] = data->source[2 * (framesPerBuffer * *data->buffersRead + i) + 1];
+            //printf("OUTPUT_RIGHT %i:%zu = %f\n", data->buffersRead, i, data->output_right[i]);
+            //printf("TEMP_RIGHT %i:%zu = %f\n", data->buffersRead, i, data->temp_right[i]);
+            out_left[i]         = 1.00 * (data->output_left[i]  + data->temp_left[i]);
+            out_right[i]        = 1.00 * (data->output_right[i] + data->temp_right[i]);
             data->temp_left[i]  = data->output_left[i + 1024];
             data->temp_right[i] = data->output_right[i + 1024];
         }
@@ -596,8 +803,7 @@ int multiStereoCallbackFile(const void *inputBuffer, void *outputBuffer,
             out_right[i]  = 0.0;
         }
     }
-
-    *data->buffersRead = *data->buffersRead + 1;
+    data->buffersRead += 1;
     return paContinue;
 }
 

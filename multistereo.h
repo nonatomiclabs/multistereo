@@ -41,13 +41,23 @@
  */
 typedef struct
 {
-	fftwf_complex *sp_IR_LL; /*!< Spectrum of impulse response LL */
-	fftwf_complex *sp_IR_RL; /*!< Spectrum of impulse response RL */
-	fftwf_complex *sp_IR_LR; /*!< Spectrum of impulse response LR */
-	fftwf_complex *sp_IR_RR; /*!< Spectrum of impulse response RR */
+	fftwf_complex *sp_IR_LL;
+	fftwf_complex *sp_IR_RL;
+	fftwf_complex *sp_IR_LC;
+	fftwf_complex *sp_IR_RC;
+	fftwf_complex *sp_IR_LR;
+	fftwf_complex *sp_IR_RR;
+	fftwf_complex *sp_IR_LRs;
+	fftwf_complex *sp_IR_RRs;
+	fftwf_complex *sp_IR_LLs;
+	fftwf_complex *sp_IR_RLs;
+
 
 	fftwf_complex *sp_in_left;
+	fftwf_complex *sp_in_center;
 	fftwf_complex *sp_in_right;
+	fftwf_complex *sp_in_right_s;
+	fftwf_complex *sp_in_left_s;
 	fftwf_complex *sp_out_left;
 	fftwf_complex *sp_out_right;
 
@@ -56,12 +66,17 @@ typedef struct
 	float*	temp_left;
 	float*	temp_right;
 	float*	in_left_fft;
+	float*	in_center_fft;
 	float*	in_right_fft;
+	float*	in_right_s_fft;
+	float*	in_left_s_fft;
 
 	fftwf_plan forward;		 /*!< FFTW forward plan used inside the callback */
 	fftwf_plan backward;	 /*!< FFTW backward plan used inside the callback */
 
-
+	float* source;
+	SF_INFO FileInfo;
+	int buffersRead;
 }
 sharedData;
 
@@ -73,7 +88,8 @@ sharedData;
  * \param path Path to the folder containing impulse response audio files.
  * \returns A sharedData structure then passed to the callback.
  */
-sharedData init (const char* path);
+sharedData initIO (const char* path);
+sharedData initFile (const char* pathIR, const char* pathFile);
 
 /**
  * Responsible for opening audio streams which will be used to binauralize the audio.
@@ -81,13 +97,22 @@ sharedData init (const char* path);
  * \param outputIndex Index of the output device to use to open audio stream.
  * \param path Path to the folder containing impulse response audio files.
  */
-void binauralize (int inputIndex, int outputIndex, const char* path);
+void binauralizeIO   (int inputIndex, int outputIndex, const char* path);
+void binauralizeFile (int outputIndex, const char* pathIR, const char* pathFile);
+
 
 
 /** Callback called to process the 'binauralization'
 	\returns PaContinue
  */
-int multiStereoCallback(const void *inputBuffer,
+int multiStereoCallbackIO(const void *inputBuffer,
+						void *outputBuffer,
+						unsigned long framesPerBuffer,
+						const PaStreamCallbackTimeInfo* timeInfo,
+						PaStreamCallbackFlags statusFlags,
+						void *userData);
+
+int multiStereoCallbackFile(const void *inputBuffer,
 						void *outputBuffer,
 						unsigned long framesPerBuffer,
 						const PaStreamCallbackTimeInfo* timeInfo,

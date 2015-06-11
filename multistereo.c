@@ -812,26 +812,38 @@ int multiStereoCallbackFile(const void *inputBuffer, void *outputBuffer,
 /***********************************************************************************/
 void usage (void) {
     puts("--------------------------------------------------------------------------");
+    color("1");
     puts("Welcome in multistereo!");
+    color("0");
     puts("");
     puts("");
     printf("To start \'binauralization\' process, please use the ");
-    color("1;31");
+    color("1;32");
     printf("\'-binauralize\'");
     color("0");
     printf(" flag\n");
-    printf("followed by the index of the device that you want to use for input and output");
+    printf("followed by the index of the device that you want to use for input and output\n");
     printf("and the path to the folder containing audio files for impulse responses.\n");
     puts("Also make sure that your IR are correctly named, \'IR_LRs.wav\' for the impulse response");
     puts("of the surround right channel in the left ear.");
     puts("Please make sure that the input/output devices have enough channels to be used.");
-    puts("To use default input and output devices, use the flag \'-binauralize default'");
+    printf("To use default input and output devices, use the flag");
+    color("1;32");
+    printf("\'-binauralize default\'\n");
+    color("0");
     puts("");
     puts("");  
     printf("To get a list of available devices with their index, use the flag ");
-    color("1;31");
-    printf("\'-devs\'.\n");
+    color("1;32");
+    printf("\'-devs\'\n");
     color("0");
+    puts("");
+    puts(""); 
+    printf("Multistereo can also work with files. Just use the flag");
+    color("1;32");
+    printf("\'-binauralize file\'\n");
+    color("0");
+    puts("followed by the path to your IR folder and the path to your multichannel  5.1 audio file.");
     puts("--------------------------------------------------------------------------");
 }
 

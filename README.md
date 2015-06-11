@@ -1,23 +1,39 @@
 # Multistereo
 
-A C-program based on [PortAudio](http://portaudio.com) to apply binaural filters on 5-channels audio signals.
+A C-program based on [PortAudio](http://portaudio.com) and [FFTW](http://www.fftw.org) to apply binaural filters on 5-channels audio signals.
 
 ## Install
 
-You should start by installing `portaudio`. See [this link](http://portaudio.com/download.html) to do so.
+You should start by installing `portaudio`, `libsndfile` and `FFTW`. See these links ot do so:
 
-[`libsndfile`](http://www.mega-nerd.com/libsndfile/) should also be installed.
+* `PortAudio`: [http://portaudio.com/download.html](http://portaudio.com/download.html)
+* `libsndfile`: [http://www.mega-nerd.com/libsndfile/#Download](http://www.mega-nerd.com/libsndfile/#Download)
+* `FFTW`: [http://www.fftw.org/download.html](http://www.fftw.org/download.html)
 
-If you're running Mac OS X, you can use `brew install portaudio`and `brew install libsndfile` to get these two libraries installed, after having installed [`Brew`](http://brew.sh).
+If you're running Mac OS X, you can run
 
-Then, compile the project files as usual.
+	brew install portaudio
+	brew install libsndfile
+	brew install fftw3
+	
+to get these three libraries installed, after having installed [`Brew`](http://brew.sh).
+
+Then, compile the project files using the `make` command or using:
+
+	gcc multistereo.c main.c -lportaudio -lfftw3f -lsndfile -o multistereo
 
 ## Usage
 
-Launch the program with `./multistereo`.
+Launch the program with `./multistereo` and it will display you the usage which is the following:
 
-It should automatically detect the first five inputs of your soundcard and convolve it with left and right HRTF.  
-If you have no soundcard with this number of I/O and are running Mac OS X, you can use *soundflower*, formerly developped by *Cycling74*.
+* list available audio devices with the flag `-devs`
+* binauralize an input signal using:
+	* *I/O that you select* with the flag `-binauralize <inputIndex> <outputIndex>`
+	* *default I/O* with the flag `-binauralize default`
+	In each case, the flag should be followed by the absolute or relative path to your impulse response files.
+* binauralize an input file using the flag `-binauralize file` followed by the path to your impulse responses and the path to your multichannel file
+
+Your impulse responses should be named as the following: `IR_LL.wav`, `IR_RL.wav`, `IR_LC.wav`, `IR_RC.wav`, `IR_LR.wav`, `IR_RR.wav`, `IR_LRs.wav`, `IR_RRs.wav`, `IR_LLs.wav`, `IR_RLs.wav`.
 
 ## Documentation
 
@@ -37,17 +53,17 @@ In our case, the callback function (defined in `MSCallback.h/.c) basically sends
 The transfer function in itself is described in another file: `binauralize.h/.c`
 
 For now, only the main and callback functions are established.  
-The `binauralize` function is prototyped and will be based on "brute convolution", but may be based on FFT once a first working version will be producedgit.
+The `binauralize` function is based on FFT.
 
 ## Contributing
 
 Any help is welcome to improve this project.
 
-The project is firstly aimed to work with 5.1 sound signals and with "brute" convolution.  
+The project is firstly aimed to work with 5.1 sound signals.  
 Different upgrades may include:
 
+* auto-truncate impulse responses to the buffer size
 * support for more multichannel sound formats (up to 22.2)
-* convolution by FFT or block convolution algorithms to increase performances
 
 ## License
 

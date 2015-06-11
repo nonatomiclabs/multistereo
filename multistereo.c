@@ -585,8 +585,17 @@ void binauralizeFile (int outputIndex, const char* pathIR, const char* pathFile)
     /* Start processing audio */
     err = Pa_StartStream(stream);
     if(err != paNoError) goto error;
-    
-    Pa_Sleep(duration);
+
+    unsigned delayCntr = 0;
+    puts("--------------------------------------------------------------------------");
+    puts("NOW PLAYING!");
+    puts("");
+    while(delayCntr++ < (duration/1000.0))
+    {
+        printf("\rElapsed time: %d sec.\t\tRemaining time: %i sec.", delayCntr, (int) floor((duration/1000.0 - delayCntr))); fflush(stdout);
+        Pa_Sleep(1000);
+    }
+    puts("--------------------------------------------------------------------------");
     
     /* Close stream */
     err = Pa_CloseStream(stream);
